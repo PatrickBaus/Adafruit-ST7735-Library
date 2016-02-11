@@ -410,15 +410,15 @@ void Adafruit_ST7735::setAddrWindow(uint8_t x0, uint8_t y0, uint8_t x1,
     *rsport |=  rspinmask;
     *csport &= ~cspinmask;
     SPI.setDataSize (SPI_CR1_DFF);
-    SPI.write(x0);
-    SPI.write(x1);
+    SPI.write(x0+colstart);
+    SPI.write(x1+colstart);
   
     writecommand(ST7735_RASET);
     *rsport |=  rspinmask;
     *csport &= ~cspinmask;
   
-    SPI.write(y0);
-    SPI.write(y1);
+    SPI.write(y0+rowstart);
+    SPI.write(y1+rowstart);
     SPI.setDataSize(0);
   
     writecommand(ST7735_RAMWR);
