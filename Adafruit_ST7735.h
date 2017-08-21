@@ -26,12 +26,23 @@ as well as Adafruit raw 1.8" TFT display
 
 #include "Arduino.h"
 #include "Print.h"
-#include <Adafruit_GFX.h>
 
-#if defined(__AVR__) || defined(CORE_TEENSY)
+#if defined (__STM32F1__)
+  #include <Adafruit_GFX_AS.h>    // Core graphics library
+  #define LEDPIN PC13
+  
+#endif
+#if !defined (__STM32F1__)
+  #include <Adafruit_GFX.h>    // Core graphics library
+#endif
+
+#if (defined(__AVR__) || defined(CORE_TEENSY) ) && !defined(__STM32F1__)
   #include <avr/pgmspace.h>
   #define USE_FAST_IO
   typedef volatile uint8_t RwReg;
+#elif defined(__STM32F1__)
+  typedef volatile uint32 RwReg;
+  #define USE_FAST_IO
 #elif defined(ARDUINO_STM32_FEATHER)
   typedef volatile uint32 RwReg;
   #define USE_FAST_IO
@@ -175,13 +186,20 @@ class Adafruit_ST7735 : public Adafruit_GFX {
 
   boolean  hwSPI;
 
+  #if !defined (__STM32F1__)
   int8_t  _cs, _dc, _rst, _sid, _sclk;
   uint8_t colstart, rowstart, xstart, ystart; // some displays need this changed
-
+  #endif
+  
 #if defined(USE_FAST_IO)
   volatile RwReg  *dataport, *clkport, *csport, *dcport;
 
-  #if defined(__AVR__) || defined(CORE_TEENSY)  // 8 bit!
+  #if defined (__STM32F1__)
+  uint32_t _cs, _dc, _rst, _sid, _sclk,
+           datapinmask, clkpinmask, cspinmask, dcpinmask,
+           colstart, rowstart, xstart, ystart; // some displays need this changed
+  uint16_t lineBuffer[ST7735_TFTHEIGHT_160]; // DMA buffer. 16bit color data per pixel
+  #elif defined(__AVR__) || defined(CORE_TEENSY)  // 8 bit!
     uint8_t  datapinmask, clkpinmask, cspinmask, dcpinmask;
   #else    // 32 bit!
     uint32_t  datapinmask, clkpinmask, cspinmask, dcpinmask;
