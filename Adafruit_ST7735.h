@@ -167,7 +167,16 @@ class Adafruit_ST7735 : public Adafruit_GFX {
   uint32_t readcommand32(uint8_t);
   void     dummyclock(void);
   */
+  protected:
+  /**
+   * SPI transactions
+   *
+   * Common code for SPI transactions including CSN toggle
+   *
+   */
+  inline void beginTransaction();
 
+  inline void endTransaction();
  private:
   uint8_t  tabcolor;
 

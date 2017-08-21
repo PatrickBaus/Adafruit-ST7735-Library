@@ -61,15 +61,38 @@ Adafruit_ST7735::Adafruit_ST7735(int8_t cs, int8_t dc, int8_t rst)
   _sid  = _sclk = -1;
 }
 
+/****************************************************************************/
+
+  inline void Adafruit_ST7735::beginTransaction() {
+  #if defined (SPI_HAS_TRANSACTION)
+    if(hwSPI) SPI.beginTransaction(mySPISettings);
+  #endif
+  CS_LOW();
+  }
+
+/****************************************************************************/
+
+  inline void Adafruit_ST7735::endTransaction() {
+	CS_HIGH();
+  #if defined (SPI_HAS_TRANSACTION)
+    if (hwSPI) SPI.endTransaction();
+	#endif
+  }
+
+/****************************************************************************/
+
+
 inline void Adafruit_ST7735::spiwrite(uint8_t c) {
 
   //Serial.println(c, HEX);
-
   if (hwSPI) {
 #if defined (SPI_HAS_TRANSACTION)
-      SPI.transfer(c);
+      SPI.write(c);
 #elif defined (__STM32F1__)
-      SPI.transfer(c);      
+      SPI.setClockDivider(SPI_CLOCK_DIV2);
+      SPI.setDataMode(SPI_MODE0);
+      SPI.setBitOrder(MSBFIRST);
+      SPI.write(c);      
 #elif defined (__AVR__) || defined(CORE_TEENSY)
       SPCRbackup = SPCR;
       SPCR = mySPCR;
@@ -101,34 +124,14 @@ inline void Adafruit_ST7735::spiwrite(uint8_t c) {
 
 
 void Adafruit_ST7735::writecommand(uint8_t c) {
-#if defined (SPI_HAS_TRANSACTION)
-  if (hwSPI)    SPI.beginTransaction(mySPISettings);
-#endif
-  DC_LOW();
-  CS_LOW();
-
+  DC_LOW();  
   spiwrite(c);
-
-  CS_HIGH();
-#if defined (SPI_HAS_TRANSACTION)
-  if (hwSPI)    SPI.endTransaction();
-#endif
 }
 
 
 void Adafruit_ST7735::writedata(uint8_t c) {
-#if defined (SPI_HAS_TRANSACTION)
-  if (hwSPI)    SPI.beginTransaction(mySPISettings);
-#endif
   DC_HIGH();
-  CS_LOW();
-    
   spiwrite(c);
-
-  CS_HIGH();
-#if defined (SPI_HAS_TRANSACTION)
-  if (hwSPI)    SPI.endTransaction();
-#endif
 }
 
 // Rather than a bazillion writecommand() and writedata() calls, screen
@@ -292,11 +295,12 @@ static const uint8_t PROGMEM
 // Companion code to the above tables.  Reads and issues
 // a series of LCD commands stored in PROGMEM byte array.
 void Adafruit_ST7735::commandList(const uint8_t *addr) {
-
+  
   uint8_t  numCommands, numArgs;
   uint16_t ms;
 
   numCommands = pgm_read_byte(addr++);   // Number of commands to follow
+  beginTransaction();
   while(numCommands--) {                 // For each command...
     writecommand(pgm_read_byte(addr++)); //   Read, issue command
     numArgs  = pgm_read_byte(addr++);    //   Number of args to follow
@@ -312,6 +316,7 @@ void Adafruit_ST7735::commandList(const uint8_t *addr) {
       delay(ms);
     }
   }
+  endTransaction();
 }
 
 
@@ -331,8 +336,10 @@ void Adafruit_ST7735::commonInit(const uint8_t *cmdList) {
 
   if(hwSPI) { // Using hardware SPI
 #if defined (SPI_HAS_TRANSACTION)
-    SPI.begin();
     mySPISettings = SPISettings(8000000, MSBFIRST, SPI_MODE0);
+    #if defined (__STM32F1__)
+      mySPISettings = SPISettings(36000000, MSBFIRST, SPI_MODE0);
+    #endif                                   
 #elif defined (__STM32F1__)
     SPI.begin();
     SPI.setClockDivider(SPI_CLOCK_DIV2);
@@ -416,8 +423,10 @@ void Adafruit_ST7735::initR(uint8_t options) {
 
   // if black, change MADCTL color filter
   if ((options == INITR_BLACKTAB) || (options == INITR_MINI160x80)) {
+    beginTransaction();
     writecommand(ST7735_MADCTL);
     writedata(0xC0);
+    endTransaction();
   }
 
   tabcolor = options;
@@ -428,7 +437,7 @@ void Adafruit_ST7735::initR(uint8_t options) {
 
 void Adafruit_ST7735::setAddrWindow(uint8_t x0, uint8_t y0, uint8_t x1,
  uint8_t y1) {
-
+  beginTransaction();
   writecommand(ST7735_CASET); // Column addr set
   writedata(0x00);
   writedata(x0+xstart);     // XSTART 
@@ -442,23 +451,16 @@ void Adafruit_ST7735::setAddrWindow(uint8_t x0, uint8_t y0, uint8_t x1,
   writedata(y1+ystart);     // YEND
 
   writecommand(ST7735_RAMWR); // write to RAM
+  endTransaction();
 }
 
 
 void Adafruit_ST7735::pushColor(uint16_t color) {
-#if defined (SPI_HAS_TRANSACTION)
-  if (hwSPI)    SPI.beginTransaction(mySPISettings);
-#endif
-
+  beginTransaction();
   DC_HIGH();
-  CS_LOW();
   spiwrite(color >> 8);
   spiwrite(color);
-  CS_HIGH();
-
-#if defined (SPI_HAS_TRANSACTION)
-  if (hwSPI)    SPI.endTransaction();
-#endif
+  endTransaction();
 }
 
 void Adafruit_ST7735::drawPixel(int16_t x, int16_t y, uint16_t color) {
@@ -467,19 +469,12 @@ void Adafruit_ST7735::drawPixel(int16_t x, int16_t y, uint16_t color) {
 
   setAddrWindow(x,y,x+1,y+1);
 
-#if defined (SPI_HAS_TRANSACTION)
-  if (hwSPI)     SPI.beginTransaction(mySPISettings);
-#endif
+  beginTransaction();
 
   DC_HIGH();
-  CS_LOW();
   spiwrite(color >> 8);
   spiwrite(color);
-  CS_HIGH();
-
-#if defined (SPI_HAS_TRANSACTION)
-  if (hwSPI)     SPI.endTransaction();
-#endif
+  endTransaction();
 }
 
 
@@ -493,21 +488,13 @@ void Adafruit_ST7735::drawFastVLine(int16_t x, int16_t y, int16_t h,
 
   uint8_t hi = color >> 8, lo = color;
     
-#if defined (SPI_HAS_TRANSACTION)
-  if (hwSPI)      SPI.beginTransaction(mySPISettings);
-#endif
-
+  beginTransaction();
   DC_HIGH();
-  CS_LOW();
   while (h--) {
     spiwrite(hi);
     spiwrite(lo);
   }
-  CS_HIGH();
-
-#if defined (SPI_HAS_TRANSACTION)
-  if (hwSPI)      SPI.endTransaction();
-#endif
+  endTransaction();
 }
 
 
@@ -521,21 +508,13 @@ void Adafruit_ST7735::drawFastHLine(int16_t x, int16_t y, int16_t w,
 
   uint8_t hi = color >> 8, lo = color;
 
-#if defined (SPI_HAS_TRANSACTION)
-  if (hwSPI)      SPI.beginTransaction(mySPISettings);
-#endif
-
+  beginTransaction();
   DC_HIGH();
-  CS_LOW();
   while (w--) {
     spiwrite(hi);
     spiwrite(lo);
   }
-  CS_HIGH();
-
-#if defined (SPI_HAS_TRANSACTION)
-  if (hwSPI)      SPI.endTransaction();
-#endif
+  endTransaction();
 }
 
 
@@ -559,23 +538,17 @@ void Adafruit_ST7735::fillRect(int16_t x, int16_t y, int16_t w, int16_t h,
 
   uint8_t hi = color >> 8, lo = color;
     
-#if defined (SPI_HAS_TRANSACTION)
-  if (hwSPI)      SPI.beginTransaction(mySPISettings);
-#endif
+  beginTransaction();
 
   DC_HIGH();
-  CS_LOW();
   for(y=h; y>0; y--) {
     for(x=w; x>0; x--) {
       spiwrite(hi);
       spiwrite(lo);
     }
   }
-  CS_HIGH();
 
-#if defined (SPI_HAS_TRANSACTION)
-  if (hwSPI)      SPI.endTransaction();
-#endif
+  endTransaction();
 }
 
 
@@ -594,7 +567,7 @@ uint16_t Adafruit_ST7735::Color565(uint8_t r, uint8_t g, uint8_t b) {
 #define MADCTL_MH  0x04
 
 void Adafruit_ST7735::setRotation(uint8_t m) {
-
+  beginTransaction();
   writecommand(ST7735_MADCTL);
   rotation = m % 4; // can't be higher than 3
   switch (rotation) {
@@ -679,11 +652,14 @@ void Adafruit_ST7735::setRotation(uint8_t m) {
      xstart = rowstart;
      break;
   }
+  endTransaction();
 }
 
 
 void Adafruit_ST7735::invertDisplay(boolean i) {
+  beginTransaction();
   writecommand(i ? ST7735_INVON : ST7735_INVOFF);
+  endTransaction();
 }
 
 
