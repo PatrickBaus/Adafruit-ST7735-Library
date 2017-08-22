@@ -194,6 +194,7 @@ class Adafruit_ST7735 : public Adafruit_GFX {
   inline void DC_LOW(void);
 
   boolean  hwSPI;
+  boolean  DMA;
 
   #if !defined (__STM32F1__)
   int8_t  _cs, _dc, _rst, _sid, _sclk;
